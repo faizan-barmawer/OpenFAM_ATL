@@ -32,7 +32,7 @@ private:
     Fam_Thread_Model famThreadModel;
     Fam_Context_Model famContextModel;
     MemServerMap memoryServerList;
-    RpcClientMap *rpcClients; // = new RpcClientMap();
+    RpcClientMap *rpcClients;
     struct fi_info *fi;
     struct fid_fabric *fabric;
     struct fid_eq *eq;
@@ -131,21 +131,9 @@ int atl_initialize(fam *inp_fam) {
     int ret = 0;
     uint64_t memoryServerCount;
 //    FAM_PROFILE_INIT();
-//    peCnt = (int *)malloc(sizeof(int));
-//    peId = (int *)malloc(sizeof(int));
-//    if (grpName)
-//        groupName = strdup(grpName);
-//    else {
-//        message << "Fam Invalid Option specified: GroupName";
-//        throw Fam_InvalidOption_Exception(message.str().c_str());
-//    }
-//    optValueMap = new std::map<std::string, const void *>();
-
-//    optValueMap->insert({ supportedOptionList[VERSION], strdup("0.0.1") });
 
     memoryServerCount = 1;
 
-//    if ((ret = validate_fam_options(options)) < 0) {
     if ((ret = populate_fam_options(inp_fam)) < 0) {
         return ret;
     }
@@ -362,14 +350,13 @@ int fam_get_atomic(void *local, Fam_Descriptor *descriptor,
 //    FAM_PROFILE_START_OPS(fam_get_atomic);
     if (ret == 0) {
         // Read data from FAM region with this key
-        size_t dataSize = descriptor->get_size();
         Fam_Global_Descriptor globalDescriptor = descriptor->get_global_descriptor();
         uint64_t dataitemId = globalDescriptor.offset / MIN_OBJ_SIZE;
 
         key |= (globalDescriptor.regionId & REGIONID_MASK) << REGIONID_SHIFT;
         key |= (dataitemId & DATAITEMID_MASK) << DATAITEMID_SHIFT;
         key |= 1;
-        ret = fabric_register_mr(local, dataSize, &key,
+        ret = fabric_register_mr(local, nbytes, &key,
                                      domain, 1, mr);
         if (ret < 0) {
             cout << "error: memory register failed" << endl;
@@ -417,7 +404,6 @@ int fam_put_atomic(void *local, Fam_Descriptor *descriptor,
 //    FAM_PROFILE_START_OPS(fam_put_atomic);
     if (ret == 0) {
         // Read data from FAM region with this key
-        size_t dataSize = descriptor->get_size();
 
         if (nbytes > MAX_DATA_IN_MSG) {
             Fam_Global_Descriptor globalDescriptor = descriptor->get_global_descriptor();
@@ -425,7 +411,7 @@ int fam_put_atomic(void *local, Fam_Descriptor *descriptor,
             key |= (globalDescriptor.regionId & REGIONID_MASK) << REGIONID_SHIFT;
             key |= (dataitemId & DATAITEMID_MASK) << DATAITEMID_SHIFT;
             key |= 1;
-            ret = fabric_register_mr(local, dataSize, &key,
+            ret = fabric_register_mr(local, nbytes, &key,
                                      domain, 1, mr);
             if (ret < 0) {
                 cout << "error: memory register failed" << endl;
