@@ -38,7 +38,7 @@ private:
     struct fid_eq *eq;
     struct fid_domain *domain;
     struct fid_av *av;
-    size_t fabric_iov_limit;
+//    size_t fabric_iov_limit;
     size_t serverAddrNameLen;
     void *serverAddrName;
     size_t selfAddrNameLen=0;
@@ -228,7 +228,7 @@ int atl_initialize(fam *inp_fam) {
         selfAddrs->insert({nodeId, (char *)selfAddrName});
         }
     } //nodeid
-    fabric_iov_limit = fi->tx_attr->rma_iov_limit;
+//    fabric_iov_limit = fi->tx_attr->rma_iov_limit;
 
     return 0;
 }
@@ -281,7 +281,7 @@ int atl_finalize() {
 
     delete fiAddrs;
 
-    free(serverAddrName);
+    if (serverAddrName) free(serverAddrName);
 
     if (defaultCtx != NULL)
         delete defaultCtx;
@@ -367,16 +367,19 @@ int fam_get_atomic(void *local, Fam_Descriptor *descriptor,
         Fam_Context *ATLCtx = defaultCtx;
         fi_context *ctx = fabric_post_response_buff(&retStatus,(*fiAddrs)[nodeId], ATLCtx,sizeof(retStatus));
         Fam_Rpc_Client *rpcClient = get_rpc_client(nodeId);
-        rpcClient->get_atomic(local, descriptor, offset, nbytes, key,nodeId,get_selfAddr(nodeId),get_selfAddrLen(nodeId));
+        ret = rpcClient->get_atomic(local, descriptor, offset, nbytes, key,nodeId,get_selfAddr(nodeId),get_selfAddrLen(nodeId));
 
-        fabric_recv_completion_wait(ATLCtx, ctx);
-        if (retStatus != 0)
-            cout << "Error in get_atomic" << endl;
-        else cout << "Success in get_atomic" << endl;
-        ret = fabric_deregister_mr(mr);
-        return 0;
-
-    }
+        if (ret == 0) {
+            fabric_recv_completion_wait(ATLCtx, ctx);
+            if (retStatus != 0)
+                cout << "Error in put_atomic" << endl;
+            else
+                cout << "Success in put_atomic" << endl;
+            fabric_deregister_mr(mr);
+            return retStatus;
+        }
+        return ret;
+    } //validate_item()
 //    FAM_PROFILE_END_OPS(fam_get_atomic);
     return ret;
 }
@@ -389,6 +392,7 @@ int fam_put_atomic(void *local, Fam_Descriptor *descriptor,
     fid_mr *mr = 0;
     uint64_t key = 0;
     int32_t retStatus = -1;
+    fi_context *ctx;
 
 //    FAM_CNTR_INC_API(fam_put_atomic);
 //    FAM_PROFILE_START_ALLOCATOR(fam_put_atomic);
@@ -420,21 +424,26 @@ int fam_put_atomic(void *local, Fam_Descriptor *descriptor,
         }
         uint64_t nodeId = descriptor->get_memserver_id();
         Fam_Context *ATLCtx = defaultCtx;
-        fi_context *ctx = fabric_post_response_buff(&retStatus,(*fiAddrs)[nodeId], ATLCtx,sizeof(retStatus));
+	if (nbytes > MAX_DATA_IN_MSG) 
+            ctx = fabric_post_response_buff(&retStatus,(*fiAddrs)[nodeId], ATLCtx,sizeof(retStatus));
         Fam_Rpc_Client *rpcClient = get_rpc_client(nodeId);
 
         ret = rpcClient->put_atomic(local, descriptor,offset,nbytes,key,nodeId,get_selfAddr(nodeId),get_selfAddrLen(nodeId));
 
-        fabric_recv_completion_wait(ATLCtx, ctx);
-        if (retStatus != 0)
-            cout << "Error in put_atomic" << endl;
-        else
-            cout << "Success in put_atomic" << endl;
-        if (nbytes > MAX_DATA_IN_MSG)
-            ret = fabric_deregister_mr(mr);
-        return 0;
-    }
-//    FAM_PROFILE_END_OPS(fam_put_atomic);
+	if ((ret == 0) && (nbytes > MAX_DATA_IN_MSG)) {
+            fabric_recv_completion_wait(ATLCtx, ctx);
+            if (retStatus != 0)
+                cout << "Error in put_atomic" << endl;
+            else
+                cout << "Success in put_atomic" << endl;
+	    ret = retStatus;
+	}
+	if (nbytes > MAX_DATA_IN_MSG)
+	    fabric_deregister_mr(mr);
+        return ret;
+
+    //    FAM_PROFILE_END_OPS(fam_put_atomic);
+    } //validate_item
     return ret;
 
 }
