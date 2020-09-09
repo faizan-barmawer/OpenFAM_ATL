@@ -105,7 +105,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 #
 # third-party libraries
 #
-set(OpenFAM_DIR /home/ghoshghc/OpenFAM)
+#set(OpenFAM_DIR /home/ghoshghc/OpenFAM)
+set(OpenFAM_DIR $ENV{HOME}/OpenFAM)
+message("HOME = ${OpenFAM_DIR}")
 #set(GTEST_ROOT ${PROJECT_SOURCE_DIR}/third-party/googletest)
 
 #add_subdirectory(third-party)
@@ -123,7 +125,7 @@ include_directories(${PROJECT_SOURCE_DIR}/src) # private headers (src)
 #
 # library directories
 #
-link_directories(${OpenFAM_DIR}/third-party/build/lib ${OpenFAM_DIR}/build/build-rpc/src/) # third-party libraries
+link_directories(${OpenFAM_DIR}/third-party/build/lib ${OpenFAM_DIR}/build/build-cis-rpc/src/) # third-party libraries
 
 #
 # Set openFAM options to be used only by test. Some individual test cases might override these options.
@@ -181,4 +183,4 @@ add_subdirectory(src)
 #
 # find src include -regex '.*\.\(c\|cpp\|h\)$' -print | xargs clang-format -i -style="{BasedOnStyle: llvm, IndentWidth: 4}"
 #
-
+#install
