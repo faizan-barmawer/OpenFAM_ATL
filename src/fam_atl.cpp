@@ -343,12 +343,12 @@ int fam_get_atomic(void *local, Fam_Descriptor *descriptor,
 			
         if (ret == 0) {
             fabric_recv_completion_wait(ATLCtx, ctx);
-            if (retStatus != 0)
-                cout << "Error in put_atomic" << endl;
-            else
-                cout << "Success in put_atomic" << endl;
+//            if (retStatus != 0)
+//                cout << "Error in put_atomic" << endl;
+//            else
+//                cout << "Success in put_atomic" << endl;
             fabric_deregister_mr(mr);
-            return retStatus;
+            ret = retStatus;
         }
         return ret;
     } //validate_item()
@@ -408,10 +408,10 @@ int fam_put_atomic(void *local, Fam_Descriptor *descriptor,
 
 	if ((ret == 0) && (nbytes > MAX_DATA_IN_MSG)) {
             fabric_recv_completion_wait(ATLCtx, ctx);
-            if (retStatus != 0)
-                cout << "Error in put_atomic" << endl;
-            else
-                cout << "Success in put_atomic" << endl;
+//            if (retStatus != 0)
+//                cout << "Error in put_atomic" << endl;
+//            else
+//                cout << "Success in put_atomic" << endl;
 	    ret = retStatus;
 	}
 	if (nbytes > MAX_DATA_IN_MSG)
