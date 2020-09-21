@@ -139,7 +139,10 @@ int atl_initialize(fam *inp_fam) {
         THROW_ATL_ERR_MSG(ATL_Exception, e.fam_error_msg());
     	}
     }
-    else famCIS = new Fam_CIS_Direct();
+    else {
+	char *name = strdup("127.0.0.1");
+	famCIS = new Fam_CIS_Direct(name);
+    }
     uid = (uint32_t)getuid();
     gid = (uint32_t)getgid();
 

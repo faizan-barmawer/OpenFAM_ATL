@@ -125,7 +125,7 @@ include_directories(${PROJECT_SOURCE_DIR}/src) # private headers (src)
 #
 # library directories
 #
-link_directories(${OpenFAM_DIR}/third-party/build/lib ${OpenFAM_DIR}/build/build-cis-rpc/src/) # third-party libraries
+link_directories(${OpenFAM_DIR}/third-party/build/lib ${OpenFAM_DIR}/build/build-mem-server/src) # third-party libraries
 
 #
 # Set openFAM options to be used only by test. Some individual test cases might override these options.
