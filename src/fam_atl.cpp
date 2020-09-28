@@ -346,14 +346,10 @@ int fam_get_atomic(void *local, Fam_Descriptor *descriptor,
 			
         if (ret == 0) {
             ret = fabric_completion_wait(ATLCtx, ctx, 1);
-	    if (ret) delete ctx;
-//            if (retStatus != 0)
-//                cout << "Error in put_atomic" << endl;
-//            else
-//                cout << "Success in put_atomic" << endl;
             fabric_deregister_mr(mr);
             ret = retStatus;
         }
+	if (ctx) delete ctx;
         return ret;
     } //validate_item()
 //    FAM_PROFILE_END_OPS(fam_get_atomic);
@@ -411,14 +407,10 @@ int fam_put_atomic(void *local, Fam_Descriptor *descriptor,
                                  (const char *)local, nodeId, uid, gid);
 
 	if ((ret == 0) && (nbytes > MAX_DATA_IN_MSG)) {
-            ret = fabric_completion_wait(ATLCtx, ctx, 1);
-	    if (ret) delete ctx;
-//            if (retStatus != 0)
-//                cout << "Error in put_atomic" << endl;
-//            else
-//                cout << "Success in put_atomic" << endl;
+       	    ret = fabric_completion_wait(ATLCtx, ctx, 1);
 	    ret = retStatus;
 	}
+	if (ctx) delete ctx;
 	if (nbytes > MAX_DATA_IN_MSG)
 	    fabric_deregister_mr(mr);
         return ret;
