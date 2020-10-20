@@ -39,10 +39,25 @@ public:
     int initialize(fam * inp_fam);
     int finalize();
 
-    int fam_get_atomic(void *local, Fam_Descriptor *descriptor,
-                        uint64_t offset,size_t nbytes);
-    int fam_put_atomic(void *local, Fam_Descriptor *descriptor,
-                        uint64_t offset,size_t nbytes);
+    void fam_get_atomic(void *local, Fam_Descriptor *descriptor,
+                        uint64_t offset, size_t nbytes);
+    void fam_put_atomic(void *local, Fam_Descriptor *descriptor,
+                        uint64_t offset, size_t nbytes);
+    void fam_scatter_atomic(void *local, Fam_Descriptor *descriptor,
+                            uint64_t nElements, uint64_t firstElement,
+                            uint64_t stride, uint64_t elementSize);
+
+    void fam_gather_atomic(void *local, Fam_Descriptor *descriptor,
+                           uint64_t nElements, uint64_t firstElement,
+                           uint64_t stride, uint64_t elementSize);
+
+    void fam_scatter_atomic(void *local, Fam_Descriptor *descriptor,
+                            uint64_t nElements, uint64_t *elementIndex,
+                            uint64_t elementSize);
+
+    void fam_gather_atomic(void *local, Fam_Descriptor *descriptor,
+                           uint64_t nElements, uint64_t *elementIndex,
+                           uint64_t elementSize);
 
     ATLib(); 
     ~ATLib();

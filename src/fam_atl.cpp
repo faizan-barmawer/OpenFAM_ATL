@@ -347,10 +347,10 @@ int fam_get_atomic(void *local, Fam_Descriptor *descriptor,
         if (ret == 0) {
             ret = fabric_completion_wait(ATLCtx, ctx, 1);
             fabric_deregister_mr(mr);
+            if (ctx)
+              delete ctx;
             ret = retStatus;
         }
-	if (ctx) delete ctx;
-        return ret;
     } //validate_item()
 //    FAM_PROFILE_END_OPS(fam_get_atomic);
     return ret;
@@ -413,26 +413,324 @@ int fam_put_atomic(void *local, Fam_Descriptor *descriptor,
 	if (ctx) delete ctx;
 	if (nbytes > MAX_DATA_IN_MSG)
 	    fabric_deregister_mr(mr);
-        return ret;
 
     //    FAM_PROFILE_END_OPS(fam_put_atomic);
     } //validate_item
     return ret;
-
 }
+
+int fam_scatter_atomic(void *local, Fam_Descriptor *descriptor,
+                       uint64_t nElements, uint64_t firstElement,
+                       uint64_t stride, uint64_t elementSize) {
+
+  int ret = 0;
+  std::ostringstream message;
+  fid_mr *mr = 0;
+  uint64_t key = 0;
+  int32_t retStatus = -1;
+  fi_context *ctx = NULL;
+  Fam_Global_Descriptor globalDescriptor;
+  //    FAM_CNTR_INC_API(fam_put_atomic);
+  //    FAM_PROFILE_START_ALLOCATOR(fam_put_atomic);
+  if ((local == NULL) || (descriptor == NULL) || (nElements == 0)) {
+    message << "Invalid Options";
+    THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
+  }
+
+  ret = validate_item(descriptor);
+  //    FAM_PROFILE_END_ALLOCATOR(fam_put_atomic);
+  //    FAM_PROFILE_START_OPS(fam_put_atomic);
+  if (ret == 0) {
+    // Read data from FAM region with this key
+    globalDescriptor = descriptor->get_global_descriptor();
+
+    uint64_t dataitemId = globalDescriptor.offset / MIN_OBJ_SIZE;
+    key |= (globalDescriptor.regionId & REGIONID_MASK) << REGIONID_SHIFT;
+    key |= (dataitemId & DATAITEMID_MASK) << DATAITEMID_SHIFT;
+    key |= 1;
+    ret =
+        fabric_register_mr(local, descriptor->get_size(), &key, domain, 1, mr);
+    if (ret < 0) {
+      message << "error: memory register failed";
+      THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
+    }
+    uint64_t nodeId = descriptor->get_memserver_id();
+    Fam_Context *ATLCtx = defaultCtx;
+    ctx = fabric_post_response_buff(&retStatus, (*fiAddrs)[nodeId], ATLCtx,
+                                    sizeof(retStatus));
+
+    ret = famCIS->scatter_strided_atomic(
+        globalDescriptor.regionId & REGIONID_MASK, globalDescriptor.offset,
+        nElements, firstElement, stride, elementSize, key, get_selfAddr(nodeId),
+        get_selfAddrLen(nodeId), nodeId, uid, gid);
+
+    if (ret == 0) {
+      fabric_completion_wait(ATLCtx, ctx, 1);
+      ret = retStatus;
+      fabric_deregister_mr(mr);
+    }
+    //    FAM_PROFILE_END_OPS(fam_put_atomic);
+  } // validate_item
+  return ret;
+}
+
+int fam_gather_atomic(void *local, Fam_Descriptor *descriptor,
+                      uint64_t nElements, uint64_t firstElement,
+                      uint64_t stride, uint64_t elementSize) {
+
+  int ret = 0;
+  std::ostringstream message;
+  fid_mr *mr = 0;
+  uint64_t key = 0;
+  int32_t retStatus = -1;
+  fi_context *ctx = NULL;
+  Fam_Global_Descriptor globalDescriptor;
+  //    FAM_CNTR_INC_API(fam_put_atomic);
+  //    FAM_PROFILE_START_ALLOCATOR(fam_put_atomic);
+  if ((local == NULL) || (descriptor == NULL) || (nElements == 0)) {
+    message << "Invalid Options";
+    THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
+  }
+
+  ret = validate_item(descriptor);
+  //    FAM_PROFILE_END_ALLOCATOR(fam_put_atomic);
+  //    FAM_PROFILE_START_OPS(fam_put_atomic);
+  if (ret == 0) {
+    // Read data from FAM region with this key
+    globalDescriptor = descriptor->get_global_descriptor();
+
+    uint64_t dataitemId = globalDescriptor.offset / MIN_OBJ_SIZE;
+    key |= (globalDescriptor.regionId & REGIONID_MASK) << REGIONID_SHIFT;
+    key |= (dataitemId & DATAITEMID_MASK) << DATAITEMID_SHIFT;
+    key |= 1;
+    ret =
+        fabric_register_mr(local, descriptor->get_size(), &key, domain, 1, mr);
+    if (ret < 0) {
+      message << "error: memory register failed";
+      THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
+    }
+    uint64_t nodeId = descriptor->get_memserver_id();
+    Fam_Context *ATLCtx = defaultCtx;
+    ctx = fabric_post_response_buff(&retStatus, (*fiAddrs)[nodeId], ATLCtx,
+                                    sizeof(retStatus));
+
+    ret = famCIS->gather_strided_atomic(
+        globalDescriptor.regionId & REGIONID_MASK, globalDescriptor.offset,
+        nElements, firstElement, stride, elementSize, key, get_selfAddr(nodeId),
+        get_selfAddrLen(nodeId), nodeId, uid, gid);
+
+    if (ret == 0) {
+      fabric_completion_wait(ATLCtx, ctx, 1);
+      ret = retStatus;
+      fabric_deregister_mr(mr);
+    }
+    //    FAM_PROFILE_END_OPS(fam_put_atomic);
+  } // validate_item
+  return ret;
+}
+
+int fam_scatter_atomic(void *local, Fam_Descriptor *descriptor,
+                       uint64_t nElements, uint64_t *elementIndex,
+                       uint64_t elementSize) {
+
+  int ret = 0;
+  std::ostringstream message;
+  fid_mr *mr = 0;
+  uint64_t key = 0;
+  int32_t retStatus = -1;
+  fi_context *ctx = NULL;
+  Fam_Global_Descriptor globalDescriptor;
+  //    FAM_CNTR_INC_API(fam_put_atomic);
+  //    FAM_PROFILE_START_ALLOCATOR(fam_put_atomic);
+  if ((local == NULL) || (descriptor == NULL) || (nElements == 0)) {
+    message << "Invalid Options";
+    THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
+  }
+
+  ret = validate_item(descriptor);
+  //    FAM_PROFILE_END_ALLOCATOR(fam_put_atomic);
+  //    FAM_PROFILE_START_OPS(fam_put_atomic);
+  if (ret == 0) {
+    // Read data from FAM region with this key
+    globalDescriptor = descriptor->get_global_descriptor();
+
+    uint64_t dataitemId = globalDescriptor.offset / MIN_OBJ_SIZE;
+    key |= (globalDescriptor.regionId & REGIONID_MASK) << REGIONID_SHIFT;
+    key |= (dataitemId & DATAITEMID_MASK) << DATAITEMID_SHIFT;
+    key |= 1;
+    ret =
+        fabric_register_mr(local, descriptor->get_size(), &key, domain, 1, mr);
+    if (ret < 0) {
+      message << "error: memory register failed";
+      THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
+    }
+    // convert the elementIndex array into a comma separated string
+    std::vector<uint64_t> index;
+    ostringstream indexStr;
+    for (uint64_t i = 0; i < nElements; i++)
+      index.push_back(elementIndex[i]);
+    copy(index.begin(), index.end() - 1,
+         ostream_iterator<uint64_t>(indexStr, ","));
+    indexStr << index.back();
+    index.clear();
+
+    uint64_t nodeId = descriptor->get_memserver_id();
+    Fam_Context *ATLCtx = defaultCtx;
+    ctx = fabric_post_response_buff(&retStatus, (*fiAddrs)[nodeId], ATLCtx,
+                                    sizeof(retStatus));
+
+    ret = famCIS->scatter_indexed_atomic(
+        globalDescriptor.regionId & REGIONID_MASK, globalDescriptor.offset,
+        nElements, string(indexStr.str()).c_str(), elementSize, key,
+        get_selfAddr(nodeId), get_selfAddrLen(nodeId), nodeId, uid, gid);
+
+    if (ret == 0) {
+      fabric_completion_wait(ATLCtx, ctx, 1);
+      ret = retStatus;
+      fabric_deregister_mr(mr);
+    }
+    //    FAM_PROFILE_END_OPS(fam_put_atomic);
+  } // validate_item
+  return ret;
+}
+int fam_gather_atomic(void *local, Fam_Descriptor *descriptor,
+                      uint64_t nElements, uint64_t *elementIndex,
+                      uint64_t elementSize) {
+
+  int ret = 0;
+  std::ostringstream message;
+  fid_mr *mr = 0;
+  uint64_t key = 0;
+  int32_t retStatus = -1;
+  fi_context *ctx = NULL;
+  Fam_Global_Descriptor globalDescriptor;
+  //    FAM_CNTR_INC_API(fam_put_atomic);
+  //    FAM_PROFILE_START_ALLOCATOR(fam_put_atomic);
+  if ((local == NULL) || (descriptor == NULL) || (nElements == 0)) {
+    message << "Invalid Options";
+    THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
+  }
+
+  ret = validate_item(descriptor);
+  //    FAM_PROFILE_END_ALLOCATOR(fam_put_atomic);
+  //    FAM_PROFILE_START_OPS(fam_put_atomic);
+  if (ret == 0) {
+    // Read data from FAM region with this key
+    globalDescriptor = descriptor->get_global_descriptor();
+
+    uint64_t dataitemId = globalDescriptor.offset / MIN_OBJ_SIZE;
+    key |= (globalDescriptor.regionId & REGIONID_MASK) << REGIONID_SHIFT;
+    key |= (dataitemId & DATAITEMID_MASK) << DATAITEMID_SHIFT;
+    key |= 1;
+    ret =
+        fabric_register_mr(local, descriptor->get_size(), &key, domain, 1, mr);
+    if (ret < 0) {
+      message << "error: memory register failed";
+      THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
+    }
+    // convert the elementIndex array into a comma separated string
+    std::vector<uint64_t> index;
+    ostringstream indexStr;
+    for (uint64_t i = 0; i < nElements; i++)
+      index.push_back(elementIndex[i]);
+    copy(index.begin(), index.end() - 1,
+         ostream_iterator<uint64_t>(indexStr, ","));
+    indexStr << index.back();
+    index.clear();
+
+    uint64_t nodeId = descriptor->get_memserver_id();
+    Fam_Context *ATLCtx = defaultCtx;
+    ctx = fabric_post_response_buff(&retStatus, (*fiAddrs)[nodeId], ATLCtx,
+                                    sizeof(retStatus));
+
+    ret = famCIS->gather_indexed_atomic(
+        globalDescriptor.regionId & REGIONID_MASK, globalDescriptor.offset,
+        nElements, string(indexStr.str()).c_str(), elementSize, key,
+        get_selfAddr(nodeId), get_selfAddrLen(nodeId), nodeId, uid, gid);
+
+    if (ret == 0) {
+      fabric_completion_wait(ATLCtx, ctx, 1);
+      ret = retStatus;
+      fabric_deregister_mr(mr);
+    }
+    //    FAM_PROFILE_END_OPS(fam_put_atomic);
+  } // validate_item
+  return ret;
+}
+
 }; //class
 
 int ATLib::initialize(fam *inp_fam) {
     return pATLimpl_->atl_initialize(inp_fam);
 }
 
-int ATLib::fam_get_atomic(void *local, Fam_Descriptor *descriptor,
-                          uint64_t offset, uint64_t nbytes) {
-    return pATLimpl_->fam_get_atomic(local, descriptor, offset, nbytes);
+void ATLib::fam_get_atomic(void *local, Fam_Descriptor *descriptor,
+                           uint64_t offset, uint64_t nbytes) {
+  int ret;
+  std::ostringstream message;
+  ret = pATLimpl_->fam_get_atomic(local, descriptor, offset, nbytes);
+  if (ret) {
+    message << "Error in fam_get_atomic - Error code:" << ret;
+    throw Fam_Exception(FAM_ERR_ATL, message.str().c_str());
+  }
 }
-int ATLib::fam_put_atomic(void *local, Fam_Descriptor *descriptor,
-                          uint64_t offset, uint64_t nbytes) {
-    return pATLimpl_->fam_put_atomic(local, descriptor, offset, nbytes);
+void ATLib::fam_put_atomic(void *local, Fam_Descriptor *descriptor,
+                           uint64_t offset, uint64_t nbytes) {
+  int ret;
+  std::ostringstream message;
+  ret = pATLimpl_->fam_put_atomic(local, descriptor, offset, nbytes);
+  if (ret) {
+    message << "Error in fam_put_atomic - Error code:" << ret;
+    throw Fam_Exception(FAM_ERR_ATL, message.str().c_str());
+  }
+}
+void ATLib::fam_scatter_atomic(void *local, Fam_Descriptor *descriptor,
+                               uint64_t nElements, uint64_t firstElement,
+                               uint64_t stride, uint64_t elementSize) {
+  int ret;
+  std::ostringstream message;
+  ret = pATLimpl_->fam_scatter_atomic(local, descriptor, nElements,
+                                      firstElement, stride, elementSize);
+  if (ret) {
+    message << "Error in fam_scatter_atomic - Error code:" << ret;
+    throw Fam_Exception(FAM_ERR_ATL, message.str().c_str());
+  }
+}
+void ATLib::fam_gather_atomic(void *local, Fam_Descriptor *descriptor,
+                              uint64_t nElements, uint64_t firstElement,
+                              uint64_t stride, uint64_t elementSize) {
+  int ret;
+  std::ostringstream message;
+  ret = pATLimpl_->fam_gather_atomic(local, descriptor, nElements, firstElement,
+                                     stride, elementSize);
+  if (ret) {
+    message << "Error in fam_gather_atomic - Error code:" << ret;
+    throw Fam_Exception(FAM_ERR_ATL, message.str().c_str());
+  }
+}
+void ATLib::fam_scatter_atomic(void *local, Fam_Descriptor *descriptor,
+                               uint64_t nElements, uint64_t *elementIndex,
+                               uint64_t elementSize) {
+  int ret;
+  std::ostringstream message;
+  ret = pATLimpl_->fam_scatter_atomic(local, descriptor, nElements,
+                                      elementIndex, elementSize);
+  if (ret) {
+    message << "Error in fam_scatter_atomic - Error code:" << ret;
+    throw Fam_Exception(FAM_ERR_ATL, message.str().c_str());
+  }
+}
+void ATLib::fam_gather_atomic(void *local, Fam_Descriptor *descriptor,
+                              uint64_t nElements, uint64_t *elementIndex,
+                              uint64_t elementSize) {
+  int ret;
+  std::ostringstream message;
+  ret = pATLimpl_->fam_gather_atomic(local, descriptor, nElements, elementIndex,
+                                     elementSize);
+  if (ret) {
+    message << "Error in fam_gather_atomic - Error code:" << ret;
+    throw Fam_Exception(FAM_ERR_ATL, message.str().c_str());
+  }
 }
 
 int ATLib::finalize() {
