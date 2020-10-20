@@ -1,6 +1,6 @@
  #
  # CMakeLists.txt
- # Copyright (c) 2019 Hewlett Packard Enterprise Development, LP. All rights reserved.
+ # Copyright (c) 2020 Hewlett Packard Enterprise Development, LP. All rights reserved.
  # Redistribution and use in source and binary forms, with or without modification, are permitted provided
  # that the following conditions are met:
  # 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -105,8 +105,11 @@ set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 #
 # third-party libraries
 #
-#set(OpenFAM_DIR /home/ghoshghc/OpenFAM)
-set(OpenFAM_DIR $ENV{HOME}/OpenFAM)
+if(NOT OPENFAM_DIR)
+  set(OpenFAM_DIR $ENV{HOME}/OpenFAM)
+else()
+  set(OpenFAM_DIR ${OPENFAM_DIR}/OpenFAM)
+endif()
 message("HOME = ${OpenFAM_DIR}")
 #set(GTEST_ROOT ${PROJECT_SOURCE_DIR}/third-party/googletest)
 
@@ -173,6 +176,7 @@ add_definitions(-DOPENFAM_VERSION="${VERSION_STR}")
 # add source code
 #
 add_subdirectory(src)
+add_subdirectory(test)
 #add_subdirectory(test/unit-test)
 #add_subdirectory(test/reg-test)
 #add_subdirectory(test/maxconfig)
