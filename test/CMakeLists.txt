@@ -1,6 +1,6 @@
  #
  # CMakeLists.txt
- # Copyright (c) 2019 Hewlett Packard Enterprise Development, LP. All rights reserved.
+ # Copyright (c) 2020 Hewlett Packard Enterprise Development, LP. All rights reserved.
  # Redistribution and use in source and binary forms, with or without modification, are permitted provided
  # that the following conditions are met:
  # 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -26,3 +26,4 @@ endfunction()
 add_atl_test(fam_SG_ATL)
 add_atl_test(fam_atl_get_put)
 add_atl_test(atl_parallel_test)
+add_atl_test(atl_multi_get_put)

@@ -1,5 +1,5 @@
 /*
- * atl_parallel_test.cpp
+ * atl_multi_get_put.cpp
  * Copyright (c) 2020 Hewlett Packard Enterprise Development, LP. All rights
  * reserved. Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -39,7 +39,7 @@
 using namespace std;
 using namespace openfam;
 #define DATA_REGION "test"
-#define NUM_ITERATIONS 100
+#define NUM_DATAITEMS 10
 
 #define TEST_OPENFAM_MODEL "memory_server"
 #define TEST_CIS_INTERFACE_TYPE "rpc"
@@ -51,6 +51,7 @@ using namespace openfam;
 #define TEST_RUNTIME "PMIX"
 
 #ifdef MEMSERVER_PROFILE
+/* #undef TEST_MEMSERVER_IP */
 #endif
 
 // Runtime configuration
@@ -67,19 +68,19 @@ void init_fam_options(Fam_Options *famOpts) {
   famOpts->famContextModel = strdup(TEST_FAM_CONTEXT_MODEL);
   famOpts->runtime = strdup(TEST_RUNTIME);
 }
-// 2 instances, if run in parallel pass argument 1 and 2 repectively
-int main(int argc, char *argv[]) {
+
+int main() {
   fam *my_fam = new fam();
   ATLib *myatlib = new ATLib();
   Fam_Options fam_opts;
-  Fam_Region_Descriptor *dataRegion = NULL; //, *bufferRegion = NULL;
+  Fam_Region_Descriptor *dataRegion = NULL;
   Fam_Descriptor *item1 = NULL;
-  int i;
-  bool compflag = false;
+  int i, dataitem_ind;
+  char dataitem_name[32] = {0};
   memset((void *)&fam_opts, 0, sizeof(Fam_Options));
   init_fam_options(&fam_opts);
   //  cout << "PID ready: gdb attach " << getpid() <<endl;
-  //  sleep(60);
+  //  sleep(30);
   cout << " Calling fam_initialize" << endl;
   try {
     my_fam->fam_initialize("default", &fam_opts);
@@ -96,53 +97,36 @@ int main(int argc, char *argv[]) {
   }
   char msg1[200] = {0};
   char msg2[200] = {0};
-  try {
-    item1 = my_fam->fam_lookup("item1", DATA_REGION);
-  } catch (Fam_Exception &e) {
-    item1 = my_fam->fam_allocate("item1", 200, 0777, dataRegion);
-  }
-  cout << "Test 1: starting complete Get & Put atomic" << endl;
-  if (argc > 1) {
-    if (atoi(argv[1]) == 1) {
-      for (i = 0; i < 200; i++)
-        msg1[i] = 'A';
-    } else {
-      for (i = 0; i < 200; i++)
-        msg1[i] = 'X';
+  for (dataitem_ind = 0; dataitem_ind < NUM_DATAITEMS; dataitem_ind++) {
+    sprintf(dataitem_name, "item%d", dataitem_ind);
+    try {
+      item1 = my_fam->fam_lookup(dataitem_name, DATA_REGION);
+    } catch (Fam_Exception &e) {
+      item1 = my_fam->fam_allocate(dataitem_name, 200, 0777, dataRegion);
     }
-  } else {
     for (i = 0; i < 200; i++)
-      msg1[i] = 'A';
-  }
-  auto start = std::chrono::high_resolution_clock::now();
-  for (i = 0; i < NUM_ITERATIONS; i++) {
+      msg1[i] = 'X';
+    auto start = std::chrono::high_resolution_clock::now();
     myatlib->fam_put_atomic((void *)msg1, item1, 0, 200);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
     cout << "put atomic elapsed time: " << elapsed_seconds.count() << endl;
     start = std::chrono::high_resolution_clock::now();
-    myatlib->fam_get_atomic((void *)msg2, item1, 0, 200);
+    myatlib->fam_get_atomic((void *)msg2, item1, 0, 200); // strlen(msg1));
     end = std::chrono::high_resolution_clock::now();
     elapsed_seconds = end - start;
     cout << "get atomic elapsed time: " << elapsed_seconds.count() << endl;
-    cout << msg2 << endl;
-    if (strncmp(msg2, msg1, 200) == 0)
-      compflag = true;
-    else {
-      if (msg1[0] == 'A')
-        memset(msg1, 'X', 200);
-      else
-        memset(msg1, 'A', 200);
-      if (strncmp(msg2, msg1, 200) == 0)
-        compflag = true;
-    }
 
-    if (compflag)
-      cout << "Comparison successfull" << endl;
+    cout << msg2 << endl;
+    if (strncmp(msg1, msg2, 200) == 0)
+      cout << "Comparison of full string successful" << endl;
     else
-      cout << "Comparison failed - Iteration " << i << endl;
+      cout << "Test failed: Comparison of full string failed" << endl;
   }
+  my_fam->fam_destroy_region(dataRegion);
   myatlib->finalize();
   my_fam->fam_finalize("default");
   cout << "fam finalize successful" << endl;
+  //    delete myatlib;
+  //    delete my_fam;
 }
