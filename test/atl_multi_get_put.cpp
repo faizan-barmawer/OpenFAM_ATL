@@ -76,6 +76,7 @@ int main() {
   Fam_Region_Descriptor *dataRegion = NULL;
   Fam_Descriptor *item1 = NULL;
   int i, dataitem_ind;
+  int *my_rank;
   char dataitem_name[32] = {0};
   memset((void *)&fam_opts, 0, sizeof(Fam_Options));
   init_fam_options(&fam_opts);
@@ -89,6 +90,7 @@ int main() {
     exit(1);
   }
   myatlib->initialize(my_fam);
+  my_rank = (int *)my_fam->fam_get_option(strdup("PE_ID"));
   try {
     dataRegion = my_fam->fam_lookup_region(DATA_REGION);
   } catch (Fam_Exception &e) {
@@ -98,7 +100,7 @@ int main() {
   char msg1[200] = {0};
   char msg2[200] = {0};
   for (dataitem_ind = 0; dataitem_ind < NUM_DATAITEMS; dataitem_ind++) {
-    sprintf(dataitem_name, "item%d", dataitem_ind);
+    sprintf(dataitem_name, "item%d_%d", dataitem_ind,*my_rank);
     try {
       item1 = my_fam->fam_lookup(dataitem_name, DATA_REGION);
     } catch (Fam_Exception &e) {
