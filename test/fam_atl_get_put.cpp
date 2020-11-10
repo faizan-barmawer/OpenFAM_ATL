@@ -74,12 +74,15 @@ int main() {
   Fam_Options fam_opts;
   Fam_Region_Descriptor *dataRegion = NULL;
   Fam_Descriptor *item1 = NULL;
+  char itemName[32];
   int i;
+  int *my_rank;
   bool compflag = true;
   memset((void *)&fam_opts, 0, sizeof(Fam_Options));
   init_fam_options(&fam_opts);
   //  cout << "PID ready: gdb attach " << getpid() <<endl;
   //  sleep(30);
+  my_rank = (int *)my_fam->fam_get_option(strdup("PE_ID"));
   cout << " Calling fam_initialize" << endl;
   try {
     my_fam->fam_initialize("default", &fam_opts);
@@ -96,10 +99,11 @@ int main() {
   }
   char msg1[200] = {0};
   char msg2[200] = {0};
+  sprintf(itemName,"item1_%d",*my_rank);
   try {
-    item1 = my_fam->fam_lookup("item1", DATA_REGION);
+    item1 = my_fam->fam_lookup(itemName, DATA_REGION);
   } catch (Fam_Exception &e) {
-    item1 = my_fam->fam_allocate("item1", 200, 0777, dataRegion);
+    item1 = my_fam->fam_allocate(itemName, 200, 0777, dataRegion);
   }
   cout << "Test 1: starting complete Get & Put atomic" << endl;
   for (i = 0; i < 200; i++)

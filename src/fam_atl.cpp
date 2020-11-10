@@ -61,7 +61,12 @@ namespace openfam {
         throw exception(errMsgStr.str().c_str());                              \
     } while (0)
 
-
+#define TRY_CATCH_BEGIN try {
+#define RETURN_WITH_FAM_EXCEPTION                                              \
+    }                                                                          \
+    catch (Fam_Exception & e) {                                                \
+        throw e;                                                               \
+    }
 
 class ATLib::ATLimpl_ {
 
@@ -668,7 +673,9 @@ void ATLib::fam_get_atomic(void *local, Fam_Descriptor *descriptor,
                            uint64_t offset, uint64_t nbytes) {
   int ret;
   std::ostringstream message;
+  TRY_CATCH_BEGIN  
   ret = pATLimpl_->fam_get_atomic(local, descriptor, offset, nbytes);
+  RETURN_WITH_FAM_EXCEPTION
   if (ret) {
     message << "Error in fam_get_atomic - Error code:" << ret;
     throw Fam_Exception(FAM_ERR_ATL, message.str().c_str());
@@ -678,7 +685,9 @@ void ATLib::fam_put_atomic(void *local, Fam_Descriptor *descriptor,
                            uint64_t offset, uint64_t nbytes) {
   int ret;
   std::ostringstream message;
+  TRY_CATCH_BEGIN
   ret = pATLimpl_->fam_put_atomic(local, descriptor, offset, nbytes);
+  RETURN_WITH_FAM_EXCEPTION
   if (ret) {
     message << "Error in fam_put_atomic - Error code:" << ret;
     throw Fam_Exception(FAM_ERR_ATL, message.str().c_str());
@@ -689,8 +698,10 @@ void ATLib::fam_scatter_atomic(void *local, Fam_Descriptor *descriptor,
                                uint64_t stride, uint64_t elementSize) {
   int ret;
   std::ostringstream message;
+  TRY_CATCH_BEGIN
   ret = pATLimpl_->fam_scatter_atomic(local, descriptor, nElements,
                                       firstElement, stride, elementSize);
+  RETURN_WITH_FAM_EXCEPTION
   if (ret) {
     message << "Error in fam_scatter_atomic - Error code:" << ret;
     throw Fam_Exception(FAM_ERR_ATL, message.str().c_str());
@@ -701,8 +712,10 @@ void ATLib::fam_gather_atomic(void *local, Fam_Descriptor *descriptor,
                               uint64_t stride, uint64_t elementSize) {
   int ret;
   std::ostringstream message;
+  TRY_CATCH_BEGIN
   ret = pATLimpl_->fam_gather_atomic(local, descriptor, nElements, firstElement,
                                      stride, elementSize);
+  RETURN_WITH_FAM_EXCEPTION
   if (ret) {
     message << "Error in fam_gather_atomic - Error code:" << ret;
     throw Fam_Exception(FAM_ERR_ATL, message.str().c_str());
@@ -713,8 +726,10 @@ void ATLib::fam_scatter_atomic(void *local, Fam_Descriptor *descriptor,
                                uint64_t elementSize) {
   int ret;
   std::ostringstream message;
+  TRY_CATCH_BEGIN
   ret = pATLimpl_->fam_scatter_atomic(local, descriptor, nElements,
                                       elementIndex, elementSize);
+  RETURN_WITH_FAM_EXCEPTION
   if (ret) {
     message << "Error in fam_scatter_atomic - Error code:" << ret;
     throw Fam_Exception(FAM_ERR_ATL, message.str().c_str());
@@ -725,8 +740,10 @@ void ATLib::fam_gather_atomic(void *local, Fam_Descriptor *descriptor,
                               uint64_t elementSize) {
   int ret;
   std::ostringstream message;
+  TRY_CATCH_BEGIN
   ret = pATLimpl_->fam_gather_atomic(local, descriptor, nElements, elementIndex,
                                      elementSize);
+  RETURN_WITH_FAM_EXCEPTION
   if (ret) {
     message << "Error in fam_gather_atomic - Error code:" << ret;
     throw Fam_Exception(FAM_ERR_ATL, message.str().c_str());

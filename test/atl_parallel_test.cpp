@@ -116,6 +116,7 @@ int main(int argc, char *argv[]) {
   }
   auto start = std::chrono::high_resolution_clock::now();
   for (i = 0; i < NUM_ITERATIONS; i++) {
+    compflag = false;
     myatlib->fam_put_atomic((void *)msg1, item1, 0, 200);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
