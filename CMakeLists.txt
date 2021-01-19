@@ -28,14 +28,6 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 #
-# default system include and link directories
-#
-link_directories(/usr/lib)
-include_directories(/usr/include)
-link_directories(/usr/local/lib)
-include_directories(/usr/local/include)
-
-#
 # build type: Release (default) or Debug
 #
 message(STATUS "====================")
@@ -175,6 +167,15 @@ set( TEST_RUNTIME_OPTS --allow-run-as-root -n ${TEST_NPE} ) # path to mpirun/pru
 
 file(STRINGS ${OpenFAM_DIR}/VERSION VERSION_STR)
 add_definitions(-DOPENFAM_VERSION="${VERSION_STR}")
+
+#
+# default system include and link directories
+#
+link_directories(/usr/lib)
+include_directories(/usr/include)
+link_directories(/usr/local/lib)
+include_directories(/usr/local/include)
+
 
 #
 # add source code

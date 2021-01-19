@@ -331,10 +331,8 @@ int atl_initialize(fam *inp_fam) {
     int ret = 0;
     char *memServerName = NULL;
     char *service = NULL;
-    uint64_t numMemoryNodes;
-    uint64_t nodeId;
+    size_t memServerInfoSize;
     ATL_PROFILE_INIT();
-
 
     if ((ret = populate_fam_options(inp_fam)) < 0) {
         return ret;
@@ -367,35 +365,72 @@ int atl_initialize(fam *inp_fam) {
             return ret;
         }
     }
-    numMemoryNodes = famCIS->get_num_memory_servers();
-    if (numMemoryNodes == 0) {
-        message << "Libfabric initialize: memory server name not specified";
-        THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
+
+    try {
+        memServerInfoSize = famCIS->get_memserverinfo_size();
+    } catch(Fam_Exception &e) {
+        message << "Fam allocator get_memserverinfo_size failed";
+        THROW_ERRNO_MSG(Fam_Allocator_Exception, FAM_ERR_ALLOCATOR,
+                        message.str().c_str());
     }
 
-    for (nodeId = 0; nodeId < numMemoryNodes; nodeId++) {
-	serverAddrNameLen = famCIS->get_addr_size(nodeId);
-        if (serverAddrNameLen <= 0) {
-            message << "Fam allocator get_addr_size failed";
-            THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
-
+    if (memServerInfoSize) {
+        void *memServerInfoBuffer = calloc(1, memServerInfoSize);
+	try {
+            famCIS->get_memserverinfo(memServerInfoBuffer);
+        } catch(Fam_Exception &e) {
+            message << "Fam Allocator get_memserverinfo failed";
+            THROW_ERRNO_MSG(Fam_Allocator_Exception, FAM_ERR_ALLOCATOR,
+                            message.str().c_str());
         }
-        serverAddrName = calloc(1, serverAddrNameLen);
-	famCIS->get_addr(serverAddrName, nodeId);
 
-        ret = fabric_insert_av((char *)serverAddrName, av, fiAddrs);
-        if (ret < 0) {
-            // TODO: Log error
-            return ret;
-        }
-        if (famContextModel == FAM_CONTEXT_DEFAULT) {
-            defaultCtx = new Fam_Context(fi, domain, famThreadModel);
-            defContexts->insert({nodeId, defaultCtx});
-            ret = fabric_enable_bind_ep(fi, av, eq, defaultCtx->get_ep());
-            if (ret < 0) {
-            // TODO: Log error
-            	return ret;
+        size_t bufPtr = 0;
+        uint64_t nodeId;
+        size_t addrSize;
+        void *nodeAddr;
+        uint64_t fiAddrsSize = fiAddrs->size();
+
+        while (bufPtr < memServerInfoSize) {
+            memcpy(&nodeId, ((char *)memServerInfoBuffer + bufPtr),
+                   sizeof(uint64_t));
+            bufPtr += sizeof(uint64_t);
+            memcpy(&addrSize, ((char *)memServerInfoBuffer + bufPtr),
+                   sizeof(size_t));
+            bufPtr += sizeof(size_t);
+            nodeAddr = calloc(1, addrSize);
+            memcpy(nodeAddr, ((char *)memServerInfoBuffer + bufPtr),
+                   addrSize);
+            bufPtr += addrSize;
+
+            // Initialize defaultCtx
+            if (famContextModel == FAM_CONTEXT_DEFAULT) {
+                defaultCtx =
+                    new Fam_Context(fi, domain, famThreadModel);
+                defContexts->insert({nodeId, defaultCtx});
+                ret =
+                    fabric_enable_bind_ep(fi, av, eq, defaultCtx->get_ep());
+                if (ret < 0) {
+                    // TODO: Log error
+                    return ret;
+                }
             }
+            std::vector<fi_addr_t> tmpAddrV;
+            ret = fabric_insert_av((char *)nodeAddr, av, &tmpAddrV);
+
+            if (ret < 0) {
+                // TODO: Log error
+                return ret;
+            }
+
+            // Place the fi_addr_t at nodeId index of fiAddrs vector.
+            if (nodeId >= fiAddrsSize) {
+                // Increase the size of fiAddrs vector to accomodate
+                // nodeId larger than the current size.
+                fiAddrs->resize(nodeId + 512, FI_ADDR_UNSPEC);
+                fiAddrsSize = fiAddrs->size();
+            }
+            fiAddrs->at(nodeId) = tmpAddrV[0];
+
             selfAddrNameLen = 0;
             ret = fabric_getname_len(defaultCtx->get_ep(), &selfAddrNameLen);
             if (selfAddrNameLen <= 0) {
@@ -414,12 +449,13 @@ int atl_initialize(fam *inp_fam) {
             selfAddrLens->insert({nodeId, (uint32_t)selfAddrNameLen});
             selfAddrs->insert({nodeId, (char *)selfAddrName});
         }
-    } //nodeid
+    }
 
     ATL_PROFILE_START_TIME();
 
     return 0;
 }
+
 int atl_finalize() {
     ATL_PROFILE_END();
 
@@ -476,7 +512,7 @@ int validate_item(Fam_Descriptor *descriptor) {
     if (key == FAM_KEY_UNINITIALIZED) {
     	Fam_Global_Descriptor globalDescriptor =
             descriptor->get_global_descriptor();
-    	uint64_t regionId = globalDescriptor.regionId;
+        uint64_t regionId = globalDescriptor.regionId & REGIONID_MASK ;
     	uint64_t offset = globalDescriptor.offset;
     	uint64_t memoryServerId = descriptor->get_memserver_id();
         Fam_Region_Item_Info info = famCIS->check_permission_get_item_info(
@@ -490,6 +526,17 @@ int validate_item(Fam_Descriptor *descriptor) {
     }
     return 0;
 }
+
+Fam_Context *get_defaultCtx(uint64_t nodeId) {
+    std::ostringstream message;
+    auto obj = defContexts->find(nodeId);
+    if (obj == defContexts->end()) {
+	message << "Context for memory server id:" << nodeId << " not found";
+	THROW_ATL_ERR_MSG(ATL_Exception,message.str().c_str());
+    }
+    return obj->second;
+}
+
 
 uint32_t get_selfAddrLen(uint64_t nodeId) {
     std::ostringstream message;
@@ -551,11 +598,11 @@ int fam_get_atomic(void *local, Fam_Descriptor *descriptor,
         }
 
         uint64_t nodeId = descriptor->get_memserver_id();
-        Fam_Context *ATLCtx = defaultCtx;
+        Fam_Context *ATLCtx = get_defaultCtx(nodeId);
         fi_context *ctx = fabric_post_response_buff(&retStatus,(*fiAddrs)[nodeId], ATLCtx,sizeof(retStatus));
         ret = famCIS->get_atomic(globalDescriptor.regionId & REGIONID_MASK,
 				 globalDescriptor.offset, offset, nbytes,
-				 key, get_selfAddr(nodeId),get_selfAddrLen(nodeId),
+				 key, get_selfAddr(nodeId), get_selfAddrLen(nodeId),
 				 nodeId, uid, gid);
 			
         if (ret == 0) {
@@ -611,7 +658,7 @@ int fam_put_atomic(void *local, Fam_Descriptor *descriptor,
             }
         }
         uint64_t nodeId = descriptor->get_memserver_id();
-        Fam_Context *ATLCtx = defaultCtx;
+        Fam_Context *ATLCtx = get_defaultCtx(nodeId);
 	if (nbytes > MAX_DATA_IN_MSG) 
             ctx = fabric_post_response_buff(&retStatus,(*fiAddrs)[nodeId], ATLCtx,sizeof(retStatus));
 
@@ -669,7 +716,7 @@ int fam_scatter_atomic(void *local, Fam_Descriptor *descriptor,
       THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
     }
     uint64_t nodeId = descriptor->get_memserver_id();
-    Fam_Context *ATLCtx = defaultCtx;
+    Fam_Context *ATLCtx = get_defaultCtx(nodeId);
     ctx = fabric_post_response_buff(&retStatus, (*fiAddrs)[nodeId], ATLCtx,
                                     sizeof(retStatus));
 
@@ -724,7 +771,7 @@ int fam_gather_atomic(void *local, Fam_Descriptor *descriptor,
       THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
     }
     uint64_t nodeId = descriptor->get_memserver_id();
-    Fam_Context *ATLCtx = defaultCtx;
+    Fam_Context *ATLCtx = get_defaultCtx(nodeId);
     ctx = fabric_post_response_buff(&retStatus, (*fiAddrs)[nodeId], ATLCtx,
                                     sizeof(retStatus));
 
@@ -789,7 +836,7 @@ int fam_scatter_atomic(void *local, Fam_Descriptor *descriptor,
     index.clear();
 
     uint64_t nodeId = descriptor->get_memserver_id();
-    Fam_Context *ATLCtx = defaultCtx;
+    Fam_Context *ATLCtx = get_defaultCtx(nodeId);
     ctx = fabric_post_response_buff(&retStatus, (*fiAddrs)[nodeId], ATLCtx,
                                     sizeof(retStatus));
 
@@ -853,7 +900,7 @@ int fam_gather_atomic(void *local, Fam_Descriptor *descriptor,
     index.clear();
 
     uint64_t nodeId = descriptor->get_memserver_id();
-    Fam_Context *ATLCtx = defaultCtx;
+    Fam_Context *ATLCtx = get_defaultCtx(nodeId);
     ctx = fabric_post_response_buff(&retStatus, (*fiAddrs)[nodeId], ATLCtx,
                                     sizeof(retStatus));
 
