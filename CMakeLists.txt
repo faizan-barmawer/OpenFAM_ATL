@@ -108,7 +108,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 if(NOT OPENFAM_DIR)
   set(OpenFAM_DIR $ENV{HOME}/OpenFAM)
 else()
-  set(OpenFAM_DIR ${OPENFAM_DIR}/OpenFAM)
+  set(OpenFAM_DIR ${OPENFAM_DIR})
 endif()
 message("HOME = ${OpenFAM_DIR}")
 #set(GTEST_ROOT ${PROJECT_SOURCE_DIR}/third-party/googletest)
@@ -128,7 +128,7 @@ include_directories(${PROJECT_SOURCE_DIR}/src) # private headers (src)
 #
 # library directories
 #
-link_directories(${OpenFAM_DIR}/third-party/build/lib ${OpenFAM_DIR}/build/build-mem-server/src) # third-party libraries
+link_directories(${OpenFAM_DIR}/third-party/build/lib ${OpenFAM_DIR}/build/src) # third-party libraries
 
 #
 # Set openFAM options to be used only by test. Some individual test cases might override these options.
