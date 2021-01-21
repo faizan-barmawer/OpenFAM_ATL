@@ -120,7 +120,7 @@ message("HOME = ${OpenFAM_DIR}")
 # include directories
 #
 include_directories(${OpenFAM_DIR}/include) # public headers (include)
-include_directories(${OpenFAM_DIR}/third-party/build/include) # third-party headers (include)
+include_directories(SYSTEM ${OpenFAM_DIR}/third-party/build/include) # third-party headers (include)
 include_directories(${OpenFAM_DIR}/src)
 #include_directories(${PROJECT_SOURCE_DIR}/test/util) # utility functions
 include_directories(${PROJECT_SOURCE_DIR}/src) # private headers (src)
