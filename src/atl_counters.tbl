@@ -1,0 +1,2 @@
+ATL_COUNTER(fam_get_atomic)
+ATL_COUNTER(fam_put_atomic)

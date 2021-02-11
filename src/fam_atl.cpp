@@ -47,6 +47,10 @@
 #include <common/fam_context.h>
 #include <common/fam_libfabric.h>
 #include "fam_atl.h"
+#ifdef ATL_PROFILE
+#include "atl_counters.h"
+#endif
+
 
 using namespace std;
 namespace openfam {
@@ -90,6 +94,205 @@ private:
     std::map<uint64_t, char *> *selfAddrs;
     std::map<uint64_t, Fam_Context *> *defContexts;
     uint32_t uid,gid;
+
+
+ #ifdef ATL_PROFILE
+     Fam_Counter_St profileData[fam_counter_max][ATL_CNTR_TYPE_MAX];
+     uint64_t profile_time;
+     uint64_t profile_start;
+ #define OUTPUT_WIDTH 120
+ #define ITEM_WIDTH OUTPUT_WIDTH / 5
+     uint64_t fam_get_time() {
+ #if 1
+         long int time = static_cast<long int>(
+             duration_cast<nanoseconds>(
+                 high_resolution_clock::now().time_since_epoch())
+                 .count());
+         return time;
+ #else // using intel tsc
+         uint64_t hi, lo, aux;
+         __asm__ __volatile__("rdtscp" : "=a"(lo), "=d"(hi), "=c"(aux));
+         return (uint64_t)lo | ((uint64_t)hi << 32);
+ #endif
+     }
+
+     uint64_t fam_time_diff_nanoseconds(Fam_Profile_Time start,
+                                        Fam_Profile_Time end) {
+         return (end - start);
+     }
+ #define ATL_PROFILE_START_TIME() profile_start = fam_get_time();
+ #define ATL_PROFILE_INIT() fam_profile_init();
+ #define ATL_PROFILE_END()                                                      \
+     {                                                                          \
+         profile_time = fam_get_time() - profile_start;                         \
+         fam_dump_profile_banner();                                             \
+         fam_dump_profile_data();                                               \
+         fam_dump_profile_summary();                                            \
+     }
+ #define ATL_CNTR_INC_API(apiIdx) __ATL_CNTR_INC_API(prof_##apiIdx)
+ #define ATL_PROFILE_START_ALLOCATOR(apiIdx) __ATL_PROFILE_START_ALLOCATOR()
+ #define ATL_PROFILE_END_ALLOCATOR(apiIdx)                                      \
+     __ATL_PROFILE_END_ALLOCATOR(prof_##apiIdx)
+ #define ATL_PROFILE_START_OPS(apiIdx) __ATL_PROFILE_START_OPS()
+ #define ATL_PROFILE_END_OPS(apiIdx) __ATL_PROFILE_END_OPS(prof_##apiIdx)
+
+
+ #define __ATL_CNTR_INC_API(apiIdx)                                             \
+     uint64_t one = 1;                                                          \
+     profileData[apiIdx][ATL_CNTR_API].count.fetch_add(                         \
+         one, boost::memory_order_seq_cst);
+ #define __ATL_PROFILE_START_ALLOCATOR(apiIdx)                                  \
+     Fam_Profile_Time startAlloc = fam_get_time();
+
+ #define __ATL_PROFILE_START_OPS(apiIdx)                                        \
+     Fam_Profile_Time startOps = fam_get_time();
+
+ #define __ATL_PROFILE_END_ALLOCATOR(apiIdx)                                    \
+     Fam_Profile_Time endAlloc = fam_get_time();                                \
+     Fam_Profile_Time totalAlloc =                                              \
+         fam_time_diff_nanoseconds(startAlloc, endAlloc);                       \
+     fam_add_to_total_profile(ATL_CNTR_ALLOCATOR, apiIdx, totalAlloc);
+
+ #define __ATL_PROFILE_END_OPS(apiIdx)                                          \
+     Fam_Profile_Time endOps = fam_get_time();                                  \
+     Fam_Profile_Time totalOps = fam_time_diff_nanoseconds(startOps, endOps);   \
+     fam_add_to_total_profile(ATL_CNTR_OPS, apiIdx, totalOps);
+
+     void fam_profile_init() { memset(profileData, 0, sizeof(profileData)); }
+
+     void fam_add_to_total_profile(Fam_Counter_Type_T type, int apiIdx,
+                                   Fam_Profile_Time total) {
+         profileData[apiIdx][type].total.fetch_add(total,
+                                                   boost::memory_order_seq_cst);
+     }
+
+     void fam_total_api_time(int apiIdx) {
+         uint64_t total = profileData[apiIdx][ATL_CNTR_ALLOCATOR].total.load(
+                              boost::memory_order_seq_cst) +
+                          profileData[apiIdx][ATL_CNTR_OPS].total.load(
+                              boost::memory_order_seq_cst);
+         profileData[apiIdx][ATL_CNTR_API].total.fetch_add(
+             total, boost::memory_order_seq_cst);
+     }
+
+     void fam_dump_profile_banner(void) {
+         {
+             string header = "ATL PROFILE DATA";
+             cout << endl;
+             cout << setfill('-') << setw(OUTPUT_WIDTH) << "-" << endl;
+             cout << setfill(' ')
+                  << setw((int)(OUTPUT_WIDTH - header.length()) / 2) << " ";
+             cout << "ATL PROFILE DATA";
+             cout << setfill(' ')
+                  << setw((int)(OUTPUT_WIDTH - header.length()) / 2) << " "
+                  << endl;
+             cout << setfill('-') << setw(OUTPUT_WIDTH) << "-" << endl;
+         }
+ #define DUMP_HEADING1(name)                                                    \
+     cout << std::left << setfill(' ') << setw(ITEM_WIDTH) << name;
+         DUMP_HEADING1("Function");
+         DUMP_HEADING1("Count");
+         DUMP_HEADING1("Total Pct");
+         DUMP_HEADING1("Total time(ns)");
+         DUMP_HEADING1("Avg time/call(ns)");
+         cout << endl;
+ #define DUMP_HEADING2(name)                                                    \
+     cout << std::left << setfill(' ') << setw(ITEM_WIDTH)                      \
+          << string(strlen(name), '-');
+         DUMP_HEADING2("Function");
+         DUMP_HEADING2("Count");
+         DUMP_HEADING2("Total Pct");
+         DUMP_HEADING2("Total time(ns)");
+         DUMP_HEADING2("Avg time/call(ns)");
+         cout << endl;
+     }
+
+     void fam_dump_profile_data(void) {
+ #define DUMP_DATA_COUNT(type, idx)                                             \
+     cout << std::left << setbase(10) << setfill(' ') << setw(ITEM_WIDTH)       \
+          << profileData[idx][type].count;
+
+ #define DUMP_DATA_TIME(type, idx)                                              \
+     cout << std::left << setbase(10) << setfill(' ') << setw(ITEM_WIDTH)       \
+          << profileData[idx][type].total;
+
+ #define DUMP_DATA_PCT(type, idx)                                               \
+     {                                                                          \
+         double time_pct = (double)((double)profileData[idx][type].total *      \
+                                    100 / (double)profile_time);                \
+         cout << std::left << setfill(' ') << setw(ITEM_WIDTH) << std::fixed    \
+              << setprecision(2) << time_pct;                                   \
+     }
+
+
+ #define DUMP_DATA_AVG(type, idx)                                               \
+     {                                                                          \
+         uint64_t avg_time =                                                    \
+             (profileData[idx][type].total / profileData[idx][type].count);     \
+         cout << std::left << setfill(' ') << setw(ITEM_WIDTH) << avg_time;     \
+     }
+
+ #undef ATL_COUNTER
+ #define ATL_TOTAL_API_TIME(apiIdx) fam_total_api_time(apiIdx);
+ #define ATL_COUNTER(apiIdx) ATL_TOTAL_API_TIME(prof_##apiIdx)
+ #include "atl_counters.tbl"
+ #undef ATL_COUNTER
+ #define ATL_COUNTER(name) __ATL_COUNTER(name, prof_##name)
+ #define __ATL_COUNTER(name, apiIdx)                                            \
+     if (profileData[apiIdx][ATL_CNTR_API].count) {                             \
+         cout << std::left << setfill(' ') << setw(ITEM_WIDTH) << #name;        \
+         DUMP_DATA_COUNT(ATL_CNTR_API, apiIdx);                                 \
+         DUMP_DATA_PCT(ATL_CNTR_API, apiIdx);                                   \
+         DUMP_DATA_TIME(ATL_CNTR_API, apiIdx);                                  \
+         DUMP_DATA_AVG(ATL_CNTR_API, apiIdx);                                   \
+         cout << endl;                                                          \
+     }
+ #include "atl_counters.tbl"
+         cout << endl;
+     }
+     void fam_dump_profile_summary(void) {
+         uint64_t fam_lib_time = 0;
+         uint64_t fam_alloc_time = 0;
+         uint64_t fam_ops_time = 0;
+         cout << std::left << setfill(' ') << setw(ITEM_WIDTH) << "Summary"
+              << endl;
+         ;
+         cout << std::left << setfill(' ') << setw(ITEM_WIDTH)
+              << string(strlen("Summary"), '-') << endl;
+
+ #define ATL_SUMMARY_ENTRY(name, value)                                         \
+     cout << std::left << std::fixed << setprecision(2) << setfill(' ')         \
+          << setw(ITEM_WIDTH) << name << setw(10) << ":" << value << " ns ("    \
+          << value * 100 / profile_time << "%)" << endl;
+ #undef ATL_COUNTER
+ #undef __ATL_COUNTER
+ #define ATL_COUNTER(name) __ATL_COUNTER(prof_##name)
+ #define __ATL_COUNTER(apiIdx)                                                  \
+     {                                                                          \
+         fam_lib_time += profileData[apiIdx][ATL_CNTR_API].total;               \
+         fam_alloc_time += profileData[apiIdx][ATL_CNTR_ALLOCATOR].total;       \
+         fam_ops_time += profileData[apiIdx][ATL_CNTR_OPS].total;               \
+     }
+ #include "atl_counters.tbl"
+
+         ATL_SUMMARY_ENTRY("Total time", profile_time);
+         ATL_SUMMARY_ENTRY("OpenATL library", fam_lib_time);
+         ATL_SUMMARY_ENTRY("Allocator", fam_alloc_time);
+         ATL_SUMMARY_ENTRY("DataPath", fam_ops_time);
+         cout << endl;
+     }
+
+ #else
+ #define ATL_PROFILE_START_TIME()
+ #define ATL_PROFILE_INIT()
+ #define ATL_PROFILE_END()
+ #define ATL_CNTR_INC_API(apiIdx)
+ #define ATL_PROFILE_START_ALLOCATOR(apiIdx)
+ #define ATL_PROFILE_END_ALLOCATOR(apiIdx)
+ #define ATL_PROFILE_START_OPS(apiIdx)
+ #define ATL_PROFILE_END_OPS(apiIdx)
+ #endif
+
 public:
 
 ATLimpl_() {
@@ -130,6 +333,8 @@ int atl_initialize(fam *inp_fam) {
     char *service = NULL;
     uint64_t numMemoryNodes;
     uint64_t nodeId;
+    ATL_PROFILE_INIT();
+
 
     if ((ret = populate_fam_options(inp_fam)) < 0) {
         return ret;
@@ -211,9 +416,13 @@ int atl_initialize(fam *inp_fam) {
         }
     } //nodeid
 
+    ATL_PROFILE_START_TIME();
+
     return 0;
 }
 int atl_finalize() {
+    ATL_PROFILE_END();
+
     if (fi) {
         fi_freeinfo(fi);
         fi = NULL;
@@ -312,20 +521,20 @@ int fam_get_atomic(void *local, Fam_Descriptor *descriptor,
     int32_t retStatus = -1;
     Fam_Global_Descriptor globalDescriptor;
 
-//    FAM_CNTR_INC_API(fam_get_atomic);
-//    FAM_PROFILE_START_ALLOCATOR(fam_get_atomic);
+    ATL_CNTR_INC_API(fam_get_atomic);
+    ATL_PROFILE_START_ALLOCATOR(fam_get_atomic);
     if ((local == NULL) || (descriptor == NULL) || (nbytes == 0)) {
 	message << "Invalid Options";
 	THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
     }
+    ret = validate_item(descriptor);
     if ((offset + nbytes) > descriptor->get_size()) {
         message << "Invalid Options";
         THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
     }
 
-    ret = validate_item(descriptor);
-//    FAM_PROFILE_END_ALLOCATOR(fam_get_atomic);
-//    FAM_PROFILE_START_OPS(fam_get_atomic);
+    ATL_PROFILE_END_ALLOCATOR(fam_get_atomic);
+    ATL_PROFILE_START_OPS(fam_get_atomic);
     if (ret == 0) {
         // Read data from FAM region with this key
         globalDescriptor = descriptor->get_global_descriptor();
@@ -357,7 +566,7 @@ int fam_get_atomic(void *local, Fam_Descriptor *descriptor,
             ret = retStatus;
         }
     } //validate_item()
-//    FAM_PROFILE_END_OPS(fam_get_atomic);
+    ATL_PROFILE_END_OPS(fam_get_atomic);
     return ret;
 }
 
@@ -371,20 +580,20 @@ int fam_put_atomic(void *local, Fam_Descriptor *descriptor,
     int32_t retStatus = -1;
     fi_context *ctx = NULL;
     Fam_Global_Descriptor globalDescriptor;
-//    FAM_CNTR_INC_API(fam_put_atomic);
-//    FAM_PROFILE_START_ALLOCATOR(fam_put_atomic);
+    ATL_CNTR_INC_API(fam_put_atomic);
+    ATL_PROFILE_START_ALLOCATOR(fam_put_atomic);
     if ((local == NULL) || (descriptor == NULL) || (nbytes == 0)) {
         message << "Invalid Options";
         THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
     }
+    ret = validate_item(descriptor);
     if ((offset + nbytes) > descriptor->get_size()) {
         message << "Invalid Options";
         THROW_ATL_ERR_MSG(ATL_Exception, message.str().c_str());
     }
 
-    ret = validate_item(descriptor);
-//    FAM_PROFILE_END_ALLOCATOR(fam_put_atomic);
-//    FAM_PROFILE_START_OPS(fam_put_atomic);
+    ATL_PROFILE_END_ALLOCATOR(fam_put_atomic);
+    ATL_PROFILE_START_OPS(fam_put_atomic);
     if (ret == 0) {
         // Read data from FAM region with this key
         globalDescriptor = descriptor->get_global_descriptor();
@@ -419,8 +628,8 @@ int fam_put_atomic(void *local, Fam_Descriptor *descriptor,
 	if (nbytes > MAX_DATA_IN_MSG)
 	    fabric_deregister_mr(mr);
 
-    //    FAM_PROFILE_END_OPS(fam_put_atomic);
     } //validate_item
+    ATL_PROFILE_END_OPS(fam_put_atomic);
     return ret;
 }
 

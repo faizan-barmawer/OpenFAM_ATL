@@ -67,6 +67,10 @@ if(ENABLE_LIBFABRIC_PROFILING)
         message(STATUS "LIBFABRIC profiling enabled")
         add_definitions(-DLIBFABRIC_PROFILE)
 endif()
+if(ENABLE_ATL_PROFILING)
+    message(STATUS "ATL profiling enabled")
+    add_definitions(-DATL_PROFILE)
+endif()
 
 message(STATUS "====================")
 
