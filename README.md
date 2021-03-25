@@ -4,7 +4,7 @@ Large Atomic Transfer Library for OpenFAM
 Refer [docs/README.md](https://github.com/OpenFAM/OpenFAM_ATL/blob/main/docs/README.md) for detail description of OpenFAM_ATL design and API speicification.
 
 ## Pre-Requisite
-* Build and configure OpenFAM with memroy server model.
+* Build and configure OpenFAM with memory server model.
 
 ## Building(Ubuntu 18.04 LTS)
 
@@ -56,4 +56,3 @@ $ make -j
 ```
 $ make run-test
 ```
-
