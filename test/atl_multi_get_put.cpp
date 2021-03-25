@@ -1,6 +1,6 @@
 /*
  * atl_multi_get_put.cpp
- * Copyright (c) 2020 Hewlett Packard Enterprise Development, LP. All rights
+ * Copyright (c) 2021 Hewlett Packard Enterprise Development, LP. All rights
  * reserved. Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  * 1. Redistributions of source code must retain the above copyright notice,
@@ -41,6 +41,8 @@ using namespace openfam;
 #define DATA_REGION "test"
 #define NUM_DATAITEMS 10
 
+/* Use OpenFAM's default options */
+#if 0
 #define TEST_OPENFAM_MODEL "memory_server"
 #define TEST_CIS_INTERFACE_TYPE "rpc"
 #define TEST_CIS_SERVER "127.0.0.1"
@@ -49,6 +51,7 @@ using namespace openfam;
 #define TEST_FAM_THREAD_MODEL "FAM_THREAD_SERIALIZE"
 #define TEST_FAM_CONTEXT_MODEL "FAM_CONTEXT_DEFAULT"
 #define TEST_RUNTIME "PMIX"
+#endif
 
 #ifdef MEMSERVER_PROFILE
 /* #undef TEST_MEMSERVER_IP */
@@ -59,6 +62,8 @@ using namespace openfam;
 void init_fam_options(Fam_Options *famOpts) {
   memset((void *)famOpts, 0, sizeof(Fam_Options));
 
+/* Use OpenFAM's default options */
+#if 0
   famOpts->openFamModel = strdup(TEST_OPENFAM_MODEL);
   famOpts->cisInterfaceType = strdup(TEST_CIS_INTERFACE_TYPE);
   famOpts->cisServer = strdup(TEST_CIS_SERVER);
@@ -67,6 +72,7 @@ void init_fam_options(Fam_Options *famOpts) {
   famOpts->famThreadModel = strdup(TEST_FAM_THREAD_MODEL);
   famOpts->famContextModel = strdup(TEST_FAM_CONTEXT_MODEL);
   famOpts->runtime = strdup(TEST_RUNTIME);
+#endif
 }
 
 int main() {
